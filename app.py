@@ -1,6 +1,7 @@
 from flask import Flask, request
 from datetime import date
 import psycopg2
+import os
 
 
 app = Flask(__name__)
@@ -19,8 +20,8 @@ def main():
     funk_4 = 'find_note'
     funk_5 = 'delete_note_by_date'
 
-    conn = psycopg2.connect(dbname='my_users', user='postgres',        #соединяюсь с бд
-                        password='2G5i7r1a6f3E', host='localhost')
+    conn = psycopg2.connect(dbname='my_users', user=os.getenv('DBUSER'),        #соединяюсь с бд
+                        password=os.getenv('DBPASSWORD'), host=os.getenv('DBHOST'))
     cursor = conn.cursor()  #получаю курсор
     cursor.execute("SELECT * FROM user_states WHERE user_id = %s", (user_id,))  #получаю строки, в которых указан id юзера
     records = cursor.fetchall()
@@ -44,7 +45,7 @@ def main():
         elif intent_id.get('find_note') != None:
             if len(req['request']['nlu']['tokens']) != 1:  #проверяю сколько слов ввел пользователь
                 find_name = ' '.join(req['request']['nlu']['tokens'][1::])
-                cursor.execute("SELECT full_note, note_date FROM users WHERE user_id = %s AND note_name = %s", (user_id, find_name))
+                cursor.execute("SELECT full_note, note_date FROM user_notes WHERE user_id = %s AND note_name = %s", (user_id, find_name))
                 records = cursor.fetchall()
                 if len(records) == 1:
                     response_text = records[0][0]  
@@ -60,25 +61,25 @@ def main():
             cursor.execute("SELECT funk, state FROM user_states WHERE user_id = %s", (user_id,))  #вытаскиваю из бд значение поля state
             for row in cursor.fetchall():
                 if row == ('create_name', True):  #проверяю нужно ли создавать имя записи
-                    cursor.execute("INSERT INTO users (note_date, note_name, user_id) VALUES (%s, %s, %s)", (date_today, user_text, user_id))
+                    cursor.execute("INSERT INTO user_notes (note_date, note_name, user_id) VALUES (%s, %s, %s)", (date_today, user_text, user_id))
                     response_text = 'Имя заметки сохранено. Начало записи...'
                     cursor.execute("UPDATE user_states SET state = %s WHERE user_id = %s AND funk = %s", (False, user_id, funk_2))
                     cursor.execute("UPDATE user_states SET state = %s WHERE user_id = %s AND funk = %s", (True, user_id, funk_1))
                     break
                 elif row == ('create_note', True):  #проверяю нужно ли создавать запись
-                    cursor.execute("SELECT note_name FROM users WHERE user_id = %s AND note_date = %s", (user_id, date_today))
+                    cursor.execute("SELECT note_name FROM user_notes WHERE user_id = %s AND note_date = %s", (user_id, date_today))
                     records = cursor.fetchall()
                     for i in records[-1]:
                         name = i
-                    cursor.execute("UPDATE users SET full_note = %s WHERE note_name = %s AND note_date = %s", (user_text, name, date_today))
+                    cursor.execute("UPDATE user_notes SET full_note = %s WHERE note_name = %s AND note_date = %s", (user_text, name, date_today))
                     response_text = 'Новая запись успешно добавлена!'
                     cursor.execute("UPDATE user_states SET state = %s WHERE user_id = %s AND funk = %s", (False, user_id, funk_1))
                     break
                 elif row == ('delete_note', True):  #проверяю нужно ли удалять запись
-                    cursor.execute("SELECT note_date FROM users WHERE note_name = %s AND user_id = %s", (user_text, user_id))
+                    cursor.execute("SELECT note_date FROM user_notes WHERE note_name = %s AND user_id = %s", (user_text, user_id))
                     records = cursor.fetchall()
                     if len(records) == 1:  #если запись всего одна
-                        cursor.execute("DELETE FROM users WHERE note_name = %s AND user_id = %s", (user_text, user_id))
+                        cursor.execute("DELETE FROM user_notes WHERE note_name = %s AND user_id = %s", (user_text, user_id))
                         response_text = 'Запись успешно удалена!'
                     elif len(records) > 1:  #если несколько записей с одинаковым названием
                         cursor.execute("UPDATE user_states SET state = %s, description = %s WHERE user_id = %s AND funk = %s", (True, user_text, user_id, funk_5))
@@ -92,7 +93,7 @@ def main():
                     cursor.execute("SELECT description FROM user_states WHERE user_id = %s AND funk = %s", (user_id, funk_4))
                     name = cursor.fetchall()[0][0]
                     note_date = user_text
-                    cursor.execute("SELECT full_note FROM users WHERE note_name = %s AND note_date = %s", (name, note_date))
+                    cursor.execute("SELECT full_note FROM user_notes WHERE note_name = %s AND note_date = %s", (name, note_date))
                     response_text = cursor.fetchall()[0][0]
                     cursor.execute("UPDATE user_states SET state = %s WHERE user_id = %s AND funk = %s", (False, user_id, funk_4))
                     break
@@ -100,7 +101,7 @@ def main():
                     cursor.execute("SELECT description FROM user_states WHERE user_id = %s AND funk = %s", (user_id, funk_5))
                     name = cursor.fetchall()[0][0]
                     note_date = user_text
-                    cursor.execute("DELETE FROM users WHERE user_id = %s AND note_date = %s AND note_name = %s", (user_id, note_date, name))
+                    cursor.execute("DELETE FROM user_notes WHERE user_id = %s AND note_date = %s AND note_name = %s", (user_id, note_date, name))
                     cursor.execute("UPDATE user_states SET state = %s WHERE user_id = %s AND funk = %s", (False, user_id, funk_5))
                     response_text = 'Запись успешно удалена!'
                     break
@@ -121,4 +122,4 @@ def main():
     conn.close()
     return response
 
-app.run('0.0.0.0', port=5000, debug=True)
+app.run('0.0.0.0', port=5000, debug=True, ssl_context=('cert.pem', 'key.pem'))
