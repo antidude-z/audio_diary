@@ -9,7 +9,7 @@ app = Flask(__name__)
 
 @app.route('/', methods=['POST'])
 def main():
-    req = request.json
+    req: dict = request.json
     intent_id = req['request']['nlu']['intents']
     user_id = req['session']['user']['user_id']
     date_today = date.today()
@@ -19,6 +19,9 @@ def main():
     funk_3 = 'delete_note'
     funk_4 = 'find_note'
     funk_5 = 'delete_note_by_date'
+
+    #trying to get session states
+    s = req.get('state')
 
     conn = psycopg2.connect(dbname='my_users', user=os.getenv('DBUSER'),        #соединяюсь с бд
                         password=os.getenv('DBPASSWORD'), host=os.getenv('DBHOST'))
@@ -106,7 +109,8 @@ def main():
                     response_text = 'Запись успешно удалена!'
                     break
                 else:
-                    response_text = 'Запрос не распознан'
+                    # response_text = 'Запрос не распознан'
+                    response_text = str(s)
     
     response = {
         'version': req['version'],
@@ -114,7 +118,10 @@ def main():
         'response': {
             'text': response_text,
             'end_session': False
-            },
+        },
+        'session_state': {
+            'dialog_state': 'example'
+        }
     }
 
     conn.commit() #сохраняю изменения
@@ -122,4 +129,7 @@ def main():
     conn.close()
     return response
 
-app.run('0.0.0.0', port=5000, debug=True, ssl_context=('cert.pem', 'key.pem'))
+if os.getenv('DBHOST') == 'localhost':
+    app.run('0.0.0.0', port=5000, debug=True, ssl_context=('cert.pem', 'key.pem'))
+else:
+    app.run('0.0.0.0', port=5000, debug=True)
