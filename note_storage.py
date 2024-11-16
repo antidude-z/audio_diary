@@ -1,45 +1,53 @@
 import psycopg2
 import datetime
+import json
+
+#TODO: ПРОПИСАТЬ ДОКУМЕНТАЦИЮ!!! (там, где отсутствует). Посмотреть гайд по докам.
+#TODO: проверить, как работает конвертация дат + переделать её формат
+#TODO: менеджер контекста
 
 class NoteStorage:
+    QUERIES = json.load(open('sql_queries.json'))
+
     @classmethod
-    def setup(cls, user, password, host):
+    def setup(cls, user: str, password: str, host: str) -> None:
         cls.dbname = 'my_users'  # subject to change in the future
         cls.user = user
         cls.password = password
         cls.host = host
 
-    def __init__(self, user_id):
+    def __init__(self, user_id: str) -> None:
         self.conn = psycopg2.connect(dbname=self.dbname, user=self.user,
                         password=self.password, host=self.host)
         self.cursor = self.conn.cursor()
         self.user_id = user_id
 
-    def add_note(self, name, note_text):
-        query = "INSERT INTO user_notes (user_id, note_name, note_date, full_note) VALUES (%s, %s, %s, %s)"
-        self.cursor.execute(query, (self.user_id, name, datetime.date.today(), note_text))
+    def execute(self, query_id: str, *args, fetch: bool=False):
+        query = self.QUERIES[query_id]
+        self.cursor.execute(query, (self.user_id, *args))
 
-    def select_all_notes_by_name(self, name):
-        query = "SELECT full_note, note_date FROM user_notes WHERE user_id = %s AND note_name = %s"
-        self.cursor.execute(query, (self.user_id, name))
+        if fetch:
+            return self.cursor.fetchall()
 
-        return self.cursor.fetchall()
+    def add_note(self, name: str, note_text: str) -> None:
+        self.execute("add_note", name, datetime.date.today(), note_text)
 
-    def select_note(self, name, date):
-        query = "SELECT full_note FROM user_notes WHERE note_name = %s AND note_date = %s"
-        self.cursor.execute(query, (name, date))
+    def select_all_notes_by_name(self, name: str) -> list:
+        return self.execute("select_all_notes_by_name", name, fetch=True)
 
-        return self.cursor.fetchall()[0][0]
+    def select_note(self, name: str, date_str: str) -> str:
+        date = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
 
-    def delete_note_by_name_only(self, name):
-        query = "DELETE FROM user_notes WHERE note_name = %s AND user_id = %s"
-        self.cursor.execute(query, (name, self.user_id))
+        return self.execute('select_note', name, date, fetch=True)[0][0]
 
-    def delete_note(self, name, date):
-        query = "DELETE FROM user_notes WHERE user_id = %s AND note_date = %s AND note_name = %s"
-        self.cursor.execute(query, (self.user_id, date, name))
+    def delete_note(self, name: str, date_str: str=None) -> None:
+        if date_str is not None:
+            date = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
+            self.execute('delete_note_1', name, date)
+        else:
+            self.execute('delete_note_2', name)
 
-    def close(self):
+    def close_connection(self) -> None:
         self.conn.commit()
         self.cursor.close()
         self.conn.close()
