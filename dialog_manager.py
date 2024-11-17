@@ -1,6 +1,6 @@
 from enum import Enum
 
-response_functions = {}
+CALLBACKS = {}
 
 class DialogStatus(str, Enum):
     IDLE = 0
@@ -13,27 +13,54 @@ class DialogStatus(str, Enum):
     FIND_NOTE = 7
     INPUT_FIND_NOTE_BY_DATE = 8
 
-INTENTS = {'new_note': DialogStatus.NEW_NOTE, 'del_note': DialogStatus.DELETE_NOTE, 'find_note': DialogStatus.FIND_NOTE}
+INTENT_STATUS_MAP = {
+    'new_note': DialogStatus.NEW_NOTE,
+    'del_note': DialogStatus.DELETE_NOTE,
+    'find_note': DialogStatus.FIND_NOTE
+}
 
 
-def status(status_id: DialogStatus):
+def status_handler(status_id: DialogStatus):
     def inner(func):
-        def wrapper(session_storage: SessionStorage):
-            func(session_storage)
-            return session_storage.response
-        response_functions[status_id] = wrapper
+        def wrapper(req: DialogRequest, res: DialogResponse):
+            func(req, res)
+            return res.json
+
+        CALLBACKS[status_id] = wrapper
         return wrapper
+
     return inner
 
-class SessionStorage:
-    def __init__(self, request: dict) -> None:
-        self.is_new_session = request['session']['new']
-        self.user_text = (request['request']['original_utterance']).lower()
+class DialogRequest:
+    def __init__(self, request: dict):
         self.user_id = request['session']['user']['user_id']
-        self.tokens = request['request']['nlu']['tokens']
+        self.is_new_session = request['session']['new']
+        self.user_input = (request['request']['original_utterance']).lower()
+        self.nlu_tokens = request['request']['nlu']['tokens']
+        self.status: DialogStatus = DialogStatus.IDLE
 
-        self._request_storage = request['state']['session']
-        self._response_storage = {'dialog_status': DialogStatus.IDLE}
+        self._request_user_data: dict = request['state']['session']
+
+        if 'dialog_status' in self._request_user_data:
+            self.status = self._request_user_data['dialog_status']
+            del self._request_user_data['dialog_status']
+
+        intents: dict = request['request']['nlu']['intents']
+
+        if self.status == DialogStatus.IDLE:
+            for intent in INTENT_STATUS_MAP:
+                if intents.get(intent) is not None:
+                    self.status = INTENT_STATUS_MAP[intent]
+                    break
+
+    @property
+    def user_data(self) -> dict:
+        return self._request_user_data.copy()
+
+
+class DialogResponse:
+    def __init__(self, request: dict):
+        self._response_user_data = {'dialog_status': DialogStatus.IDLE}
 
         self._full_response = {
             'version': request['version'],
@@ -42,46 +69,28 @@ class SessionStorage:
                 'text': '',
                 'end_session': False
             },
-            'session_state': self._response_storage
+            'session_state': self._response_user_data
         }
 
-        for key, value in self._request_storage.items():
-            if key[0] == '_':
-                self._response_storage[key] = value
+    def send_user_data(self, name, value):
+        if name == 'dialog_status':
+            raise ValueError('Attempt to set dialog_status outside of a corresponding function. '
+                             'Use send_dialog_status() instead.')
 
-        if 'dialog_status' in self._request_storage:  # if it's not the first time a SessionStorage was initiated
-            self._dialog_status = self._request_storage['dialog_status']
-            del self._request_storage['dialog_status']
-        else:
-            self._dialog_status = DialogStatus.IDLE
+        self._response_user_data[name] = value
 
-        intents: dict = request['request']['nlu']['intents']
-        if self._dialog_status == DialogStatus.IDLE:
-            for intent in INTENTS:
-                if intents.get(intent) is not None:
-                    self._dialog_status = INTENTS[intent]
-                    break
-
-    @property
-    def dialog_status(self) -> DialogStatus:
-        return self._dialog_status
-
-    def respond_dialog_status(self, value: DialogStatus) -> None:
+    def send_status(self, value: DialogStatus) -> None:
         if type(value) != DialogStatus:
-            raise ValueError('Value is not a valid DialogStatus entry')
+            raise TypeError(f'{value} is not a valid DialogStatus entry.')
 
-        self._response_storage['dialog_status'] = value
+        self._response_user_data['dialog_status'] = value
 
-    def __getitem__(self, item: str):
-        return self._request_storage[item]
-
-    def respond_user_data(self, item, value):
-        self._response_storage[item] = value
-
-    def respond_text(self, text):
-        self._full_response['response']['text'] = text
+    def send_message(self, text):
+        if len(self._full_response['response']['text']) == 0:
+            self._full_response['response']['text'] = text
+        else:
+            self._full_response['response']['text'] += '\n' + text
 
     @property
-    def response(self):
-        return self._full_response
-
+    def json(self):
+        return self._full_response.copy()

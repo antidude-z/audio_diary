@@ -8,94 +8,99 @@ NoteStorage.setup(user=os.getenv('DBUSER'), password=os.getenv('DBPASSWORD'), ho
 
 @app.route('/', methods=['POST'])
 def main():
-    req: dict = request.json
-    session_storage = SessionStorage(req)
-    func = response_functions[session_storage.dialog_status]
+    req = DialogRequest(request.json)
+    res = DialogResponse(request.json)
 
-    return func(session_storage)
+    for name, value in req.user_data.items():
+        if name[0] == '_':
+            res.send_user_data(name, value)
 
-@status(DialogStatus.IDLE)
-def idle(st: SessionStorage):
-    if st.is_new_session:
-        st.respond_text('Начало работы тестового навыка')
+    func = CALLBACKS[req.status]
+
+    return func(req, res)
+
+@status_handler(DialogStatus.IDLE)
+def idle(req: DialogRequest, res: DialogResponse):
+    if req.is_new_session:
+        res.send_message('Начало работы тестового навыка')
     else:
-        st.respond_text('Запрос не распознан')
+        res.send_message('Запрос не распознан')
 
-@status(DialogStatus.NEW_NOTE)
-def new_note(st: SessionStorage):
-    st.respond_dialog_status(DialogStatus.INPUT_NAME)
-    st.respond_text('Придумайте имя записи')
+@status_handler(DialogStatus.NEW_NOTE)
+def new_note(req: DialogRequest, res: DialogResponse):
+    res.send_status(DialogStatus.INPUT_NAME)
+    res.send_message('Придумайте имя записи')
 
-@status(DialogStatus.INPUT_NAME)
-def input_name(st: SessionStorage):
-    st.respond_text('Имя заметки сохранено. Начало записи...')
-    st.respond_user_data('new_note_name', st.user_text)
-    st.respond_dialog_status(DialogStatus.INPUT_NOTE)
+@status_handler(DialogStatus.INPUT_NAME)
+def input_name(req: DialogRequest, res: DialogResponse):
+    res.send_message('Имя заметки сохранено. Начало записи...')
+    res.send_user_data('new_note_name', req.user_input)
+    res.send_status(DialogStatus.INPUT_NOTE)
 
-@status(DialogStatus.INPUT_NOTE)
-def input_note(st: SessionStorage):
-    ns = NoteStorage(st.user_id)
-    ns.add_note(st['new_note_name'], st.user_text)
-    st.respond_text('Новая запись успешно добавлена!')
-    ns.close_connection()
+@status_handler(DialogStatus.INPUT_NOTE)
+def input_note(req: DialogRequest, res: DialogResponse):
+    note_storage = NoteStorage(req.user_id)
+    note_storage.add_note(req.user_data['new_note_name'], req.user_input)
+    res.send_message('Новая запись успешно добавлена!')
+    note_storage.close_connection()
 
-@status(DialogStatus.DELETE_NOTE)
-def delete_note(st: SessionStorage):
-    st.respond_text('Запись с каким названием Вы бы хотели удалить?')
-    st.respond_dialog_status(DialogStatus.INPUT_DEL_NOTE)
+@status_handler(DialogStatus.DELETE_NOTE)
+def delete_note(req: DialogRequest, res: DialogResponse):
+    res.send_message('Запись с каким названием Вы бы хотели удалить?')
+    res.send_status(DialogStatus.INPUT_DEL_NOTE)
 
-@status(DialogStatus.INPUT_DEL_NOTE)
-def input_del_note(st: SessionStorage):
-    note_storage = NoteStorage(st.user_id)
-    records = note_storage.select_all_notes_by_name(st.user_text)
+@status_handler(DialogStatus.INPUT_DEL_NOTE)
+def input_del_note(req: DialogRequest, res: DialogResponse):
+    note_storage = NoteStorage(req.user_id)
+    records = note_storage.select_all_notes_by_name(req.user_input)
 
     if len(records) == 1:  # если запись всего одна
-        note_storage.delete_note(st.user_text)
-        st.respond_text('Запись успешно удалена!')
+        note_storage.delete_note(req.user_input)
+        res.send_message('Запись успешно удалена!')
     elif len(records) > 1:  # если несколько записей с одинаковым названием
-        st.respond_dialog_status(DialogStatus.INPUT_DEL_NOTE_BY_DATE)
-        st.respond_user_data('note_for_deletion', st.user_text)
+        res.send_status(DialogStatus.INPUT_DEL_NOTE_BY_DATE)
+        res.send_user_data('note_for_deletion', req.user_input)
         date_list = [str(i[1]) for i in records]
-        st.respond_text(f"Запись с таким названием была сделана в следующие дни: {', '.join(date_list)}. Выберите интересующий Вас день")
+        res.send_message(f"Запись с таким названием была сделана в следующие дни: {', '.join(date_list)}. Выберите интересующий Вас день")
     else:
-        st.respond_text('У вас нет записи с таким названием')
+        res.send_message('У вас нет записи с таким названием')
 
     note_storage.close_connection()
 
-@status(DialogStatus.INPUT_DEL_NOTE_BY_DATE)
-def input_del_note_by_date(st: SessionStorage):
-    note_storage = NoteStorage(st.user_id)
-    note_storage.delete_note(st['note_for_deletion'], st.user_text)
-    st.respond_text('Запись успешно удалена!')
+@status_handler(DialogStatus.INPUT_DEL_NOTE_BY_DATE)
+def input_del_note_by_date(req: DialogRequest, res: DialogResponse):
+    note_storage = NoteStorage(req.user_id)
+    note_storage.delete_note(req.user_data['note_for_deletion'], req.user_input)
+    res.send_message('Запись успешно удалена!')
     note_storage.close_connection()
 
-@status(DialogStatus.FIND_NOTE)
-def find_note(st: SessionStorage):
-    note_storage = NoteStorage(st.user_id)
+@status_handler(DialogStatus.FIND_NOTE)
+def find_note(req: DialogRequest, res: DialogResponse):
+    note_storage = NoteStorage(req.user_id)
 
-    if len(st.tokens) != 1:  # проверяю сколько слов ввел пользователь
-        find_name = ' '.join(st.tokens[1::])
+    if len(req.nlu_tokens) != 1:  # проверяю сколько слов ввел пользователь
+        find_name = ' '.join(req.nlu_tokens[1::])
         records = note_storage.select_all_notes_by_name(find_name)
 
         if len(records) == 1:
-            st.respond_text(records[0][0])
+            res.send_message(records[0][0])
         elif len(records) == 0:
-            st.respond_text('Нет записи с таким названием')
+            res.send_message('Нет записи с таким названием')
         else:
             date_list = [str(i[1]) for i in records]
-            st.respond_text(f"Запись с таким названием была сделана в следующие дни: {', '.join(date_list)}. Выберете интересующий Вас день")
-            st.respond_dialog_status(DialogStatus.INPUT_FIND_NOTE_BY_DATE)
-            st.respond_user_data('note_for_search', find_name)
+            res.send_message(f"Запись с таким названием была сделана в следующие дни: {', '.join(date_list)}. Выберите интересующий Вас день")
+            res.send_status(DialogStatus.INPUT_FIND_NOTE_BY_DATE)
+            res.send_user_data('note_for_search', find_name)
     else:
-        st.respond_text('Вы не указали имя заметки')
+        res.send_message('Вы не указали имя заметки')
 
     note_storage.close_connection()
 
-@status(DialogStatus.INPUT_FIND_NOTE_BY_DATE)
-def input_find_note_by_date(st: SessionStorage):
-    note_storage = NoteStorage(st.user_id)
-    note = note_storage.select_note(st['note_for_search'], st.user_text)
-    st.respond_text(note)
+@status_handler(DialogStatus.INPUT_FIND_NOTE_BY_DATE)
+def input_find_note_by_date(req: DialogRequest, res: DialogResponse):
+    note_storage = NoteStorage(req.user_id)
+    note = note_storage.select_note(req.user_data['note_for_search'], req.user_input)
+    res.send_message(note)
     note_storage.close_connection()
 
 if os.getenv('DBHOST') == 'localhost':
