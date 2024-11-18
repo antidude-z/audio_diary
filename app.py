@@ -1,6 +1,6 @@
 import os
-from dialog_manager import *
 from flask import Flask, request
+from dialog_manager import DialogStatus, DialogRequest, DialogResponse, status_handler, get_callback
 from note_storage import NoteStorage
 
 app = Flask(__name__)
@@ -15,9 +15,8 @@ def main():
         if name[0] == '_':
             res.send_user_data(name, value)
 
-    func = CALLBACKS[req.status]
-
-    return func(req, res)
+    callback = get_callback(req.status)
+    return callback(req, res)
 
 @status_handler(DialogStatus.IDLE)
 def idle(req: DialogRequest, res: DialogResponse):
@@ -39,10 +38,9 @@ def input_name(req: DialogRequest, res: DialogResponse):
 
 @status_handler(DialogStatus.INPUT_NOTE)
 def input_note(req: DialogRequest, res: DialogResponse):
-    note_storage = NoteStorage(req.user_id)
-    note_storage.add_note(req.user_data['new_note_name'], req.user_input)
+    with NoteStorage(req.user_id) as db:
+        db.add_note(req.user_data['new_note_name'], req.user_input)
     res.send_message('Новая запись успешно добавлена!')
-    note_storage.close_connection()
 
 @status_handler(DialogStatus.DELETE_NOTE)
 def delete_note(req: DialogRequest, res: DialogResponse):
@@ -51,36 +49,33 @@ def delete_note(req: DialogRequest, res: DialogResponse):
 
 @status_handler(DialogStatus.INPUT_DEL_NOTE)
 def input_del_note(req: DialogRequest, res: DialogResponse):
-    note_storage = NoteStorage(req.user_id)
-    records = note_storage.select_all_notes_by_name(req.user_input)
+    with NoteStorage(req.user_id) as db:
+        records = db.select_all_notes_by_name(req.user_input)
 
-    if len(records) == 1:  # если запись всего одна
-        note_storage.delete_note(req.user_input)
-        res.send_message('Запись успешно удалена!')
-    elif len(records) > 1:  # если несколько записей с одинаковым названием
-        res.send_status(DialogStatus.INPUT_DEL_NOTE_BY_DATE)
-        res.send_user_data('note_for_deletion', req.user_input)
-        date_list = [str(i[1]) for i in records]
-        res.send_message(f"Запись с таким названием была сделана в следующие дни: {', '.join(date_list)}. Выберите интересующий Вас день")
-    else:
-        res.send_message('У вас нет записи с таким названием')
-
-    note_storage.close_connection()
+        if len(records) == 1:  # если запись всего одна
+            db.delete_note(req.user_input)
+            res.send_message('Запись успешно удалена!')
+        elif len(records) > 1:  # если несколько записей с одинаковым названием
+            res.send_status(DialogStatus.INPUT_DEL_NOTE_BY_DATE)
+            res.send_user_data('note_for_deletion', req.user_input)
+            date_list = [str(i[1]) for i in records]
+            res.send_message(f"Запись с таким названием была сделана в следующие дни: {', '.join(date_list)}. Выберите интересующий Вас день")
+        else:
+            res.send_message('У вас нет записи с таким названием')
 
 @status_handler(DialogStatus.INPUT_DEL_NOTE_BY_DATE)
 def input_del_note_by_date(req: DialogRequest, res: DialogResponse):
-    note_storage = NoteStorage(req.user_id)
-    note_storage.delete_note(req.user_data['note_for_deletion'], req.user_input)
+    with NoteStorage(req.user_id) as db:
+        db.delete_note(req.user_data['note_for_deletion'], req.user_input)
     res.send_message('Запись успешно удалена!')
-    note_storage.close_connection()
 
 @status_handler(DialogStatus.FIND_NOTE)
 def find_note(req: DialogRequest, res: DialogResponse):
-    note_storage = NoteStorage(req.user_id)
-
     if len(req.nlu_tokens) != 1:  # проверяю сколько слов ввел пользователь
         find_name = ' '.join(req.nlu_tokens[1::])
-        records = note_storage.select_all_notes_by_name(find_name)
+
+        with NoteStorage(req.user_id) as db:
+            records = db.select_all_notes_by_name(find_name)
 
         if len(records) == 1:
             res.send_message(records[0][0])
@@ -94,14 +89,21 @@ def find_note(req: DialogRequest, res: DialogResponse):
     else:
         res.send_message('Вы не указали имя заметки')
 
-    note_storage.close_connection()
-
 @status_handler(DialogStatus.INPUT_FIND_NOTE_BY_DATE)
 def input_find_note_by_date(req: DialogRequest, res: DialogResponse):
-    note_storage = NoteStorage(req.user_id)
-    note = note_storage.select_note(req.user_data['note_for_search'], req.user_input)
+    with NoteStorage(req.user_id) as db:
+        note = db.select_note(req.user_data['note_for_search'], req.user_input)
     res.send_message(note)
-    note_storage.close_connection()
+
+@status_handler(DialogStatus.LIST_ALL_NOTES)
+def list_all_notes(req: DialogRequest, res: DialogResponse):
+    with NoteStorage(req.user_id) as db:
+        records = db.select_all_notes()
+
+    res.send_message('У вас сохранены следующие заметки:')
+    for note in records:
+        name, date = note
+        res.send_message(f'{name} от {date}')
 
 if os.getenv('DBHOST') == 'localhost':
     app.run('0.0.0.0', port=5000, debug=True, ssl_context=('cert.pem', 'key.pem'))

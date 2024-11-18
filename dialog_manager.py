@@ -12,17 +12,19 @@ class DialogStatus(str, Enum):
     INPUT_DEL_NOTE_BY_DATE = 6
     FIND_NOTE = 7
     INPUT_FIND_NOTE_BY_DATE = 8
+    LIST_ALL_NOTES = 9
 
 INTENT_STATUS_MAP = {
     'new_note': DialogStatus.NEW_NOTE,
     'del_note': DialogStatus.DELETE_NOTE,
-    'find_note': DialogStatus.FIND_NOTE
+    'find_note': DialogStatus.FIND_NOTE,
+    'list_all_notes': DialogStatus.LIST_ALL_NOTES
 }
 
 
 def status_handler(status_id: DialogStatus):
     def inner(func):
-        def wrapper(req: DialogRequest, res: DialogResponse):
+        def wrapper(req: DialogRequest, res: DialogResponse) -> dict:
             func(req, res)
             return res.json
 
@@ -30,6 +32,9 @@ def status_handler(status_id: DialogStatus):
         return wrapper
 
     return inner
+
+def get_callback(status: DialogStatus):
+    return CALLBACKS[status]
 
 class DialogRequest:
     def __init__(self, request: dict):
@@ -47,11 +52,8 @@ class DialogRequest:
 
         intents: dict = request['request']['nlu']['intents']
 
-        if self.status == DialogStatus.IDLE:
-            for intent in INTENT_STATUS_MAP:
-                if intents.get(intent) is not None:
-                    self.status = INTENT_STATUS_MAP[intent]
-                    break
+        if self.status == DialogStatus.IDLE and len(intents) > 0:
+            self.status = INTENT_STATUS_MAP[list(intents.keys())[0]]
 
     @property
     def user_data(self) -> dict:
@@ -72,7 +74,7 @@ class DialogResponse:
             'session_state': self._response_user_data
         }
 
-    def send_user_data(self, name, value):
+    def send_user_data(self, name: str, value) -> None:
         if name == 'dialog_status':
             raise ValueError('Attempt to set dialog_status outside of a corresponding function. '
                              'Use send_dialog_status() instead.')
@@ -85,12 +87,15 @@ class DialogResponse:
 
         self._response_user_data['dialog_status'] = value
 
-    def send_message(self, text):
+    def send_message(self, text: str) -> None:
+        if len(text) == 0:
+            raise ValueError('Cannot send empty string.')
+
         if len(self._full_response['response']['text']) == 0:
             self._full_response['response']['text'] = text
         else:
             self._full_response['response']['text'] += '\n' + text
 
     @property
-    def json(self):
+    def json(self) -> dict:
         return self._full_response.copy()

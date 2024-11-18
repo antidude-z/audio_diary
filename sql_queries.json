@@ -3,5 +3,6 @@
   "select_all_notes_by_name": "SELECT full_note, note_date FROM user_notes WHERE user_id = %s AND note_name = %s",
   "select_note": "SELECT full_note FROM user_notes WHERE user_id = %s AND note_name = %s AND note_date = %s",
   "delete_note_1": "DELETE FROM user_notes WHERE user_id = %s AND note_name = %s AND note_date = %s",
-  "delete_note_2": "DELETE FROM user_notes WHERE user_id = %s AND note_name = %s"
+  "delete_note_2": "DELETE FROM user_notes WHERE user_id = %s AND note_name = %s",
+  "select_all_notes": "SELECT note_name, note_date FROM user_notes WHERE user_id = %s"
 }

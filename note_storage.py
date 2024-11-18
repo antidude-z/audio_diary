@@ -2,9 +2,8 @@ import psycopg2
 import datetime
 import json
 
-#TODO: ПРОПИСАТЬ ДОКУМЕНТАЦИЮ!!! (там, где отсутствует). Посмотреть гайд по докам.
-#TODO: проверить, как работает конвертация дат + переделать её формат
-#TODO: менеджер контекста
+#TODO: ПРОПИСАТЬ ДОКУМЕНТАЦИЮ?. Посмотреть гайд по докам.
+#TODO: type hints доделать. (как проверять аргументы на тип? или это делается автоматически?)
 
 class NoteStorage:
     QUERIES = json.load(open('sql_queries.json'))
@@ -22,6 +21,12 @@ class NoteStorage:
         self.cursor = self.conn.cursor()
         self.user_id = user_id
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close_connection()
+
     def execute(self, query_id: str, *args, fetch: bool=False):
         query = self.QUERIES[query_id]
         self.cursor.execute(query, (self.user_id, *args))
@@ -31,6 +36,9 @@ class NoteStorage:
 
     def add_note(self, name: str, note_text: str) -> None:
         self.execute("add_note", name, datetime.date.today(), note_text)
+
+    def select_all_notes(self):
+        return self.execute("select_all_notes", fetch=True)
 
     def select_all_notes_by_name(self, name: str) -> list:
         return self.execute("select_all_notes_by_name", name, fetch=True)
