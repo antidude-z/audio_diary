@@ -1,5 +1,6 @@
 import os
 import datetime
+import dateparser
 from flask import Flask, request
 from dialog_manager import DialogStatus, DialogRequest, DialogResponse, status_handler, get_callback
 from note_storage import NoteStorage
@@ -26,19 +27,32 @@ def main():
 def idle(req: DialogRequest, res: DialogResponse):
     if req.is_new_session:
         res.send_message('Начало работы тестового навыка')
+    elif req.exit_current_status:
+        res.send_message('Отменено')
     else:
         res.send_message('Запрос не распознан')
 
 @status_handler(DialogStatus.NEW_NOTE)
 def new_note(req: DialogRequest, res: DialogResponse):
-    res.send_status(DialogStatus.INPUT_NAME)
+    res.send_status(DialogStatus.INPUT_TITLE)
     res.send_message('Придумайте имя записи')
 
-@status_handler(DialogStatus.INPUT_NAME)
+@status_handler(DialogStatus.INPUT_TITLE)
 def input_name(req: DialogRequest, res: DialogResponse):
-    res.send_message('Имя заметки сохранено. Начало записи...')
-    res.send_user_data('new_note_title', req.user_input)
-    res.send_status(DialogStatus.INPUT_NOTE)
+    title = req.command
+    date = datetime.date.today()
+    with NoteStorage(req.user_id) as db:
+        notes = db.execute('select_note', (title, date))
+
+    # We cannot create two notes with the same title and date. Thus, we send the user back to title input stage
+    if len(notes) > 0:
+        res.send_message('У вас уже есть заметка с таким названием, датированная сегодняшним днём. '
+                         'Придумайте что-нибудь другое')
+        res.send_status(DialogStatus.INPUT_TITLE)
+    else:
+        res.send_message('Имя заметки сохранено. Начало записи...')
+        res.send_user_data('new_note_title', title)
+        res.send_status(DialogStatus.INPUT_NOTE)
 
 @status_handler(DialogStatus.INPUT_NOTE)
 def input_note(req: DialogRequest, res: DialogResponse):
@@ -46,7 +60,7 @@ def input_note(req: DialogRequest, res: DialogResponse):
         title = req.user_data['new_note_title']
         date = datetime.date.today()
         full_note = req.user_input
-        db.execute("add_note", (title, date, full_note))
+        db.execute("add_note", (title, date, full_note, "0"))
 
     res.send_message('Новая запись успешно добавлена!')
 
@@ -57,7 +71,7 @@ def delete_note(req: DialogRequest, res: DialogResponse):
 
 @status_handler(DialogStatus.INPUT_DEL_NOTE)
 def input_del_note(req: DialogRequest, res: DialogResponse):
-    title = req.user_input
+    title = req.command
 
     with NoteStorage(req.user_id) as db:
         notes = db.execute("select_all_notes_by_title", title)
@@ -78,7 +92,7 @@ def input_del_note(req: DialogRequest, res: DialogResponse):
 def input_del_note_by_date(req: DialogRequest, res: DialogResponse):
     with NoteStorage(req.user_id) as db:
         title = req.user_data['delete_note_title']
-        date = datetime.datetime.strptime(req.user_input, '%Y-%m-%d').date()
+        date = dateparser.parse(req.command).date()
         db.execute('delete_note_by_date', (title, date))
     res.send_message('Запись успешно удалена!')
 
@@ -107,7 +121,7 @@ def find_note(req: DialogRequest, res: DialogResponse):
 def input_find_note_by_date(req: DialogRequest, res: DialogResponse):
     with NoteStorage(req.user_id) as db:
         title = req.user_data['find_note_title']
-        date = datetime.datetime.strptime(req.user_input, '%Y-%m-%d').date()
+        date = dateparser.parse(req.command).date()
         note = db.execute('select_note', (title, date))[0][0]
 
     res.send_message(note)

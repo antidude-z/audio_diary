@@ -3,7 +3,7 @@ from enum import Enum
 class DialogStatus(str, Enum):
     IDLE = 0
     NEW_NOTE = 1
-    INPUT_NAME = 2
+    INPUT_TITLE = 2
     INPUT_NOTE = 3
     DELETE_NOTE = 4
     INPUT_DEL_NOTE = 5
