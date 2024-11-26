@@ -1,8 +1,9 @@
 {
-  "add_note": "INSERT INTO user_notes (user_id, title, date, full_note, short_note) VALUES (%s, %s, %s, %s, %s)",
-  "select_all_notes_by_title": "SELECT full_note, date FROM user_notes WHERE user_id = %s AND title = %s",
-  "select_note": "SELECT full_note FROM user_notes WHERE user_id = %s AND title = %s AND date = %s",
-  "delete_note_by_date": "DELETE FROM user_notes WHERE user_id = %s AND title = %s AND date = %s",
-  "delete_note": "DELETE FROM user_notes WHERE user_id = %s AND title = %s",
-  "select_all_notes": "SELECT title, date FROM user_notes WHERE user_id = %s"
+  "add_note": "INSERT INTO user_notes (user_id, title, date, full_note, short_note) VALUES ($1, $2, $3, $4, $5)",
+  "select_all_notes_by_title": "SELECT full_note, short_note, date FROM user_notes WHERE user_id = $1 AND title = $2",
+  "select_note": "SELECT full_note, short_note FROM user_notes WHERE user_id = $1 AND title = $2 AND date = $3",
+  "delete_note_by_date": "DELETE FROM user_notes WHERE user_id = $1 AND title = $2 AND date = $3",
+  "delete_note": "DELETE FROM user_notes WHERE user_id = $1 AND title = $2",
+  "select_all_notes": "SELECT title, date FROM user_notes WHERE user_id = $1",
+  "add_short_note": "UPDATE user_notes SET short_note = $2 WHERE user_id = $1 AND title = $3 AND date = $4"
 }

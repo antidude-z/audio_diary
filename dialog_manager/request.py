@@ -6,9 +6,9 @@ class DialogRequest:
         self.user_id: str = request['session']['user']['user_id']
         self.is_new_session: bool = request['session']['new']
         self.user_input: str = (request['request']['original_utterance']).lower()
-        self.command: str = request['request']['command']  # For date parsing purposes
+        self.command: str = request['request']['command'].lower()  # For date parsing purposes
         self.exit_current_status: bool = False
-        self.nlu_tokens: list[str] = request['request']['nlu']['tokens']  # ~ Same as command, but split into words
+        self.nlu_tokens: list[str] = list(map(lambda x: x.lower(), request['request']['nlu']['tokens']))  # ~ Same as command, but split into words
 
         # In case of new session, when session storage is initially empty, we begin with IDLE by default
         self.status: DialogStatus = DialogStatus.IDLE

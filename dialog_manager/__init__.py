@@ -11,8 +11,8 @@ CALLBACKS: dict[DialogStatus, StatusHandler] = {}
 # as well as make it provide flask-friendly json output automatically
 def status_handler(status_id: DialogStatus) -> Callable:
     def inner(func: StatusHandler) -> StatusHandler:
-        def wrapper(req: DialogRequest, res: DialogResponse) -> dict:
-            func(req, res)  # Decorated functions must take Request and Response as their arguments
+        async def wrapper(req: DialogRequest, res: DialogResponse) -> dict:
+            await func(req, res)  # Decorated functions must take Request and Response as their arguments
             return res.json
 
         CALLBACKS[status_id] = wrapper

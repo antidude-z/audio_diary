@@ -11,6 +11,7 @@ class DialogStatus(str, Enum):
     FIND_NOTE = 7
     INPUT_FIND_NOTE_BY_DATE = 8
     LIST_ALL_NOTES = 9
+    SELECT_FORM = 10
 
 INTENT_STATUS_MAP = {
     'new_note': DialogStatus.NEW_NOTE,

@@ -16,6 +16,7 @@ class DialogResponse:
             'session_state': None  # Substitute with _response_user_data directly before returning final response
         }
 
+    #TODO: add dict support
     def send_user_data(self, name: str, value: Any) -> None:
         # There's practically no need for type checking here, as everything's going to be JSON-serialized later
         if name == 'dialog_status':
