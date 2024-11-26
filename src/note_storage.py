@@ -3,7 +3,7 @@ import json
 from typing import Union
 
 class NoteStorage:
-    QUERIES: dict[str, str] = json.load(open('sql_queries.json'))
+    QUERIES: dict[str, str] = json.load(open('src/data/sql_queries.json'))
 
     @classmethod
     def setup(cls, db_user: str, password: str, host: str) -> None:
