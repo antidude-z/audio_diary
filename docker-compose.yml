@@ -19,7 +19,10 @@ services:
     depends_on:
       - pg
   pg:
-    image: "antidude/audio-diary-db"
+#    image: "antidude/audio-diary-db"
+    build:
+      context: .
+      dockerfile: pg.Dockerfile
     ports:
       - "5432:5432"
     networks:
