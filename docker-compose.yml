@@ -1,6 +1,7 @@
 services:
   web:
-    image: "antidude/audio-diary"
+#    image: "antidude/audio-diary"
+    build: .
     ports:
       - "5000:5000"
     networks:
