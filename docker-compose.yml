@@ -1,0 +1,41 @@
+services:
+  web:
+    image: "antidude/audio-diary"
+    ports:
+      - "5000:5000"
+    networks:
+      diary-net:
+        ipv4_address: 172.20.0.4
+    environment:
+      PGHOST: ${PGHOST}
+      PGUSER: ${PGUSER}
+      PGDATABASE: ${PGDATABASE}
+      PGPASSWORD: ${PGPASSWORD}
+      CATALOG_ID: ${CATALOG_ID}
+      OAUTH_TOKEN: ${OAUTH_TOKEN}
+    stdin_open: true
+    tty: true
+    depends_on:
+      - pg
+  pg:
+    image: "antidude/audio-diary-db"
+    ports:
+      - "5432:5432"
+    networks:
+      diary-net:
+        ipv4_address: 172.20.0.5
+    restart: always
+    environment:
+      - POSTGRES_USER=${PGUSER}
+      - POSTGRES_PASSWORD=${PGPASSWORD}
+    volumes:
+      - data_sql:/var/lib/postgresql/data
+
+volumes:
+  data_sql:
+
+networks:
+  diary-net:
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24

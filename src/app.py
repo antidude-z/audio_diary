@@ -1,15 +1,12 @@
-import os
 import datetime
 import dateparser
 import asyncio
-from summarize import summarize
+from summarize import summarize, start_scheduler, cleanup_scheduler
 from aiohttp import web
 from dialog_manager import DialogStatus, DialogRequest, DialogResponse, status_handler, get_callback
 from note_storage import NoteStorage
 
 #TODO: note_id?
-
-NoteStorage.setup(db_user=os.getenv('DBUSER'), password=os.getenv('DBPASSWORD'), host=os.getenv('DBHOST'))
 
 async def main(request: web.BaseRequest):
     request_data = await request.json()
@@ -164,11 +161,8 @@ async def list_all_notes(req: DialogRequest, res: DialogResponse):
         res.send_message(f"- '{name}' от {date}")
 
 # Running in HTTPS on remote server only, otherwise secure connection is established through Cloudpub
-if os.getenv('DBHOST') == 'localhost':
-    # app.run('0.0.0.0', port=5000, debug=True, ssl_context=('cert.pem', 'key.pem'))
-    pass
-else:
-    app = web.Application()
-    app.add_routes([web.post('/', main)])
-    web.run_app(app, port=5000)
-    # app.run('0.0.0.0', port=5000, debug=True)
+app = web.Application()
+app.add_routes([web.post('/', main)])
+app.on_startup.append(start_scheduler)
+app.on_cleanup.append(cleanup_scheduler)
+web.run_app(app, port=5000)

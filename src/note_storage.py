@@ -3,14 +3,7 @@ import json
 from typing import Union
 
 class NoteStorage:
-    QUERIES: dict[str, str] = json.load(open('src/data/sql_queries.json'))
-
-    @classmethod
-    def setup(cls, db_user: str, password: str, host: str) -> None:
-        cls.db_name = 'my_users'  # Subject to change in the future
-        cls.db_user = db_user
-        cls.password = password
-        cls.host = host
+    QUERIES: dict[str, str] = json.load(open('./data/sql_queries.json'))
 
     def __init__(self, user_id: str) -> None:
         self.conn = None
@@ -18,9 +11,8 @@ class NoteStorage:
 
     # These dunder methods are implemented for a custom context manager
     async def __aenter__(self):
-        # Connecting to 'PostgreSQL' database where all user notes are stored
-        self.conn = await asyncpg.connect(database=self.db_name, user=self.db_user,
-                                          password=self.password, host=self.host)
+        # Note that all sensitive info (including username, password etc.) is stored in env and loads automatically
+        self.conn = await asyncpg.connect()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):

@@ -1,34 +1,57 @@
+import os
 import aiohttp
 from note_storage import NoteStorage
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-#this is a rename test
-url = 'https://llm.api.cloud.yandex.net/foundationModels/v1/completion'
-headers = {"Content-Type": "application/json; charset=utf-8", "Authorization": "Bearer t1.9euelZrOip7ImpfKns-Xk5mJkJ2bku3rnpWayZmWzsiZmMfGzo2MjZuZnZ3l8_c6XWlF-e9AGBUX_t3z93oLZ0X570AYFRf-zef1656VmpOej8yLl8-QmZmax5PMxpTM7_zF656VmpOej8yLl8-QmZmax5PMxpTM.m7Nt61_SN32AyMbmceD8SiII3YmOL1vOn4iHMaNzVdrLc5H5Pg8oEiqPUJqsYewAHg5uraIdUdcugQlUuEQkDw"}
+
+async def obtain_new_iam_token():
+    async with aiohttp.ClientSession() as session:
+        url = 'https://iam.api.cloud.yandex.net/iam/v1/tokens'
+        data = {
+            "yandexPassportOauthToken": os.getenv('OAUTH_TOKEN')
+        }
+        async with session.post(url=url, json=data) as res:
+            if res.status == 200:
+                json = await res.json()
+                os.environ['IAM_TOKEN'] = json['iamToken']
+
+async def start_scheduler(app):
+    await obtain_new_iam_token()
+
+    scheduler = AsyncIOScheduler()
+    scheduler.add_job(obtain_new_iam_token, "interval", hours=1)
+    scheduler.start()
+    app['scheduler'] = scheduler
+
+async def cleanup_scheduler(app):
+    app['scheduler'].shutdown()
 
 async def summarize(text, user_id, title, date):
-  async with aiohttp.ClientSession() as session:
-    data = {
-      "modelUri": "gpt://b1g1dmlkotd6au2fhg2k/yandexgpt-lite",
-      "completionOptions": {
-        "stream": False,
-        "temperature": 0.6,
-        "maxTokens": "2000"
-      },
-      "messages": [
-        {
-          "role": "system",
-          "text": "Кратко и лаконично перепиши текст, сохранив его смысл"
-        },
-        {
-          "role": "user",
-          "text": text
+    async with aiohttp.ClientSession() as session:
+        url = 'https://llm.api.cloud.yandex.net/foundationModels/v1/completion'
+        headers = {"Content-Type": "application/json; charset=utf-8", "Authorization": f"Bearer {os.getenv('IAM_TOKEN')}"}
+        data = {
+            "modelUri": f"gpt://{os.getenv('CATALOG_ID')}/yandexgpt-lite",
+            "completionOptions": {
+                "stream": False,
+                "temperature": 0.6,
+                "maxTokens": "2000"
+            },
+            "messages": [
+                {
+                    "role": "system",
+                    "text": "Сократи текст, сохранив его смысл. Не используй никакое форматирование. Выдай только лаконичный перефразированный текст. Не предлагай сайты с информацией на эту тему"
+                },
+                {
+                    "role": "user",
+                    "text": text
+                }
+            ]
         }
-      ]
-    }
 
-    async with session.post(url=url, json=data, headers=headers) as res:
-      if res.status == 200:
-        json = await res.json()
-        result = json['result']['alternatives'][0]['message']['text']
-        async with NoteStorage(user_id) as db:
-          await db.execute('add_short_note', (result, title, date))
+        async with session.post(url=url, json=data, headers=headers) as res:
+            if res.status == 200:
+                json = await res.json()
+                result = json['result']['alternatives'][0]['message']['text']
+                async with NoteStorage(user_id) as db:
+                    await db.execute('add_short_note', (result, title, date))
