@@ -1,6 +1,6 @@
 services:
   web:
-#    image: "antidude/audio-diary"
+    image: "antidude/audio-diary"
     build: .
     ports:
       - "5000:5000"
@@ -14,12 +14,13 @@ services:
       PGPASSWORD: ${PGPASSWORD}
       CATALOG_ID: ${CATALOG_ID}
       OAUTH_TOKEN: ${OAUTH_TOKEN}
+      SQL_QUERIES_PATH: ${SQL_QUERIES_PATH}
     stdin_open: true
     tty: true
     depends_on:
       - pg
   pg:
-#    image: "antidude/audio-diary-db"
+    image: "antidude/audio-diary-db"
     build:
       context: .
       dockerfile: pg.Dockerfile

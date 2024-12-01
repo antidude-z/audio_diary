@@ -3,7 +3,7 @@ import aiohttp
 from note_storage import NoteStorage
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-
+# TODO: comments + refactor
 async def obtain_new_iam_token():
     async with aiohttp.ClientSession() as session:
         url = 'https://iam.api.cloud.yandex.net/iam/v1/tokens'
@@ -26,10 +26,11 @@ async def start_scheduler(app):
 async def cleanup_scheduler(app):
     app['scheduler'].shutdown()
 
-async def summarize(text, user_id, title, date):
+async def create_short_note(text, user_id, title, date):
     async with aiohttp.ClientSession() as session:
         url = 'https://llm.api.cloud.yandex.net/foundationModels/v1/completion'
-        headers = {"Content-Type": "application/json; charset=utf-8", "Authorization": f"Bearer {os.getenv('IAM_TOKEN')}"}
+        headers = {"Content-Type": "application/json; charset=utf-8",
+                   "Authorization": f"Bearer {os.getenv('IAM_TOKEN')}"}
         data = {
             "modelUri": f"gpt://{os.getenv('CATALOG_ID')}/yandexgpt-lite",
             "completionOptions": {
@@ -40,7 +41,9 @@ async def summarize(text, user_id, title, date):
             "messages": [
                 {
                     "role": "system",
-                    "text": "Сократи текст, сохранив его смысл. Не используй никакое форматирование. Выдай только лаконичный перефразированный текст. Не предлагай сайты с информацией на эту тему"
+                    "text": "Сократи текст, сохранив его смысл. Не используй никакое форматирование. "
+                            "Выдай только лаконичный перефразированный текст. "
+                            "Не предлагай сайты с информацией на эту тему"
                 },
                 {
                     "role": "user",
@@ -54,4 +57,4 @@ async def summarize(text, user_id, title, date):
                 json = await res.json()
                 result = json['result']['alternatives'][0]['message']['text']
                 async with NoteStorage(user_id) as db:
-                    await db.execute('add_short_note', (result, title, date))
+                    await db.execute('update_short_note', (result, title, date))

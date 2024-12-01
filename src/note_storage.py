@@ -1,9 +1,10 @@
 import asyncpg
 import json
+import os
 from typing import Union
 
 class NoteStorage:
-    QUERIES: dict[str, str] = json.load(open('./data/sql_queries.json'))
+    QUERIES: dict[str, str] = json.load(open(os.getenv('SQL_QUERIES_PATH')))
 
     def __init__(self, user_id: str) -> None:
         self.conn = None

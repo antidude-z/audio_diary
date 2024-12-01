@@ -1,9 +1,9 @@
-from typing import Callable
+from typing import Callable, Awaitable
 from .status import DialogStatus
 from .request import DialogRequest
 from .response import DialogResponse
 
-StatusHandler = Callable[[DialogRequest, DialogResponse], dict]  # Custom type for annotations
+StatusHandler = Callable[[DialogRequest, DialogResponse], Awaitable[dict]]  # Custom type for annotations
 
 CALLBACKS: dict[DialogStatus, StatusHandler] = {}
 
@@ -20,5 +20,5 @@ def status_handler(status_id: DialogStatus) -> Callable:
 
     return inner
 
-def get_callback(status: DialogStatus) -> StatusHandler:
-    return CALLBACKS[status]
+def get_callback(status_id: DialogStatus) -> StatusHandler:
+    return CALLBACKS[status_id]
