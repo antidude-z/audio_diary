@@ -1,7 +1,6 @@
 .idea/
 __pycache__/
 venv/
-.env
-local.env
 .vscode/
 .pem
+env/

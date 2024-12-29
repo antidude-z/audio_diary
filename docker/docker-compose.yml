@@ -1,7 +1,9 @@
 services:
   web:
     image: "antidude/audio-diary"
-    build: .
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
     ports:
       - "5000:5000"
     networks:
@@ -22,8 +24,8 @@ services:
   pg:
     image: "antidude/audio-diary-db"
     build:
-      context: .
-      dockerfile: pg.Dockerfile
+      context: ..
+      dockerfile: docker/pg.Dockerfile
     ports:
       - "5432:5432"
     networks:

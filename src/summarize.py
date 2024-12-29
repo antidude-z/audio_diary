@@ -3,6 +3,7 @@ import aiohttp
 from note_storage import NoteStorage
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
+
 # TODO: comments + refactor
 async def obtain_new_iam_token():
     async with aiohttp.ClientSession() as session:
@@ -15,6 +16,7 @@ async def obtain_new_iam_token():
                 json = await res.json()
                 os.environ['IAM_TOKEN'] = json['iamToken']
 
+
 async def start_scheduler(app):
     await obtain_new_iam_token()
 
@@ -23,8 +25,10 @@ async def start_scheduler(app):
     scheduler.start()
     app['scheduler'] = scheduler
 
+
 async def cleanup_scheduler(app):
     app['scheduler'].shutdown()
+
 
 async def create_short_note(text, user_id, title, date):
     async with aiohttp.ClientSession() as session:
