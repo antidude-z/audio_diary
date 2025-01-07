@@ -1,29 +1,41 @@
-import datetime
-import dateparser
+"""A main module which handles Alice requests at core level and contains all dialog status handlers with most of the
+skill functionality."""
+
 import asyncio
-from summarize import create_short_note, start_scheduler, cleanup_scheduler
+import datetime
+from typing import Dict, List
+
 from aiohttp import web
-from dialog_manager import DialogStatus, DialogRequest, DialogResponse, status_handler, get_callback
+from aiohttp.web_response import Response as AioResponse
+from asyncpg import Record
+import dateparser
+
+from dialog_manager import DialogStatus, DialogRequest, DialogResponse, status_handler, get_handler, StatusHandlerType
 from note_storage import NoteStorage
+from summarize import create_short_note, start_scheduler, cleanup_scheduler
 
 
-# TODO: queries and note_id rework?
+async def main(request: web.BaseRequest) -> AioResponse:
+    """Handles '/' request from Alice."""
 
-async def main(request: web.BaseRequest):
-    request_data = await request.json()
+    request_data: Dict = await request.json()
 
     # Initialise Request and Response objects
-    req = DialogRequest(request_data)
-    res = DialogResponse.from_request(req)
+    req: DialogRequest = DialogRequest(request_data)
+    res: DialogResponse = DialogResponse()
 
-    # Calling an appropriate handler for current dialog status
-    callback = get_callback(req.status)
-    response_data = await callback(req, res)
+    res.transfer_persistence(req)
+
+    # Call an appropriate handler for current dialog status
+    callback: StatusHandlerType = get_handler(req.status)
+    response_data: Dict = await callback(req, res)
     return web.json_response(response_data)
 
 
 @status_handler(DialogStatus.IDLE)
-async def idle(req: DialogRequest, res: DialogResponse):
+async def idle(req: DialogRequest, res: DialogResponse) -> None:
+    """Basic handler for every request which has not been classified as anything else."""
+
     if req.is_new_session:
         res.send_message('Навык "Аудиодневник" запущен и готов к работе... (v1)')
     elif req.exit_current_status:
@@ -32,19 +44,21 @@ async def idle(req: DialogRequest, res: DialogResponse):
         res.send_message('Запрос не распознан.')
 
 
+# Below are many self-explanatory handlers that go through various dialog scenarios step-by-step.
+
 @status_handler(DialogStatus.NEW_NOTE)
-async def new_note(req: DialogRequest, res: DialogResponse):
+async def new_note(req: DialogRequest, res: DialogResponse) -> None:
     res.send_status(DialogStatus.NEW_NOTE_TITLE_INPUT)
     res.send_message('Придумайте имя записи.')
 
 
 @status_handler(DialogStatus.NEW_NOTE_TITLE_INPUT)
-async def new_note_title_input(req: DialogRequest, res: DialogResponse):
-    title = req.command
-    date = datetime.date.today()
+async def new_note_title_input(req: DialogRequest, res: DialogResponse) -> None:
+    title: str = req.command
+    date: datetime.date = datetime.date.today()
 
     async with NoteStorage(req.user_id) as db:
-        notes = await db.execute('select_note', (title, date))
+        notes: List[Record] = await db.select_notes(title, date)
 
     # We cannot create two notes with the same title and date. Thus, we send the user back to title input
     if len(notes) > 0:
@@ -58,40 +72,40 @@ async def new_note_title_input(req: DialogRequest, res: DialogResponse):
 
 
 @status_handler(DialogStatus.NEW_NOTE_TEXT_INPUT)
-async def new_note_text_input(req: DialogRequest, res: DialogResponse):
-    title = req.user_data['title']
-    date = datetime.date.today()
-    full_note = req.user_input
+async def new_note_text_input(req: DialogRequest, res: DialogResponse) -> None:
+    title: str = req.user_data['title']
+    full_note: str = req.user_input
 
     async with NoteStorage(req.user_id) as db:
-        await db.execute("insert_full_note", (title, date, full_note))
+        await db.insert_new_note(title, full_note)
 
-    # Running short note creation in the background because it usually holds the request for >1 second (bad for UX)
-    asyncio.create_task(create_short_note(full_note, req.user_id, title, date))
+    # Running short form creation in the background because it usually holds the request for >1 second (bad for UX)
+    today: datetime.date = datetime.date.today()
+    asyncio.create_task(create_short_note(full_note, req.user_id, title, today))
 
     res.send_message('Новая запись успешно добавлена!')
 
 
 @status_handler(DialogStatus.DEL_NOTE)
-async def del_note(req: DialogRequest, res: DialogResponse):
+async def del_note(req: DialogRequest, res: DialogResponse) -> None:
     res.send_message('Запись с каким названием Вы бы хотели удалить?')
     res.send_status(DialogStatus.DEL_NOTE_TITLE_INPUT)
 
 
 @status_handler(DialogStatus.DEL_NOTE_TITLE_INPUT)
-async def del_note_title_input(req: DialogRequest, res: DialogResponse):
-    title = req.command
+async def del_note_title_input(req: DialogRequest, res: DialogResponse) -> None:
+    title: str = req.command
 
     async with NoteStorage(req.user_id) as db:
-        notes = await db.execute("select_notes_by_title", title)
+        notes: List[Record] = await db.select_notes(title)
 
         if len(notes) == 1:  # If title is unique, simply delete the corresponding note
-            await db.execute('delete_note_by_title', title)
+            await db.delete_notes(title)
             res.send_message('Запись успешно удалена!')
         elif len(notes) > 1:  # If there are few notes with the same title, ask user to specify the date
             res.send_status(DialogStatus.DEL_NOTE_DATE_INPUT)
             res.send_user_data({'title': title})
-            date_list = [str(i[2]) for i in notes]
+            date_list: List[str] = [str(i[3]) for i in notes]
             res.send_message(f"Запись с таким названием была сделана в следующие дни: {', '.join(date_list)}. "
                              f"Выберите интересующий Вас день.")
         else:
@@ -99,30 +113,30 @@ async def del_note_title_input(req: DialogRequest, res: DialogResponse):
 
 
 @status_handler(DialogStatus.DEL_NOTE_DATE_INPUT)
-async def del_note_date_input(req: DialogRequest, res: DialogResponse):
-    title = req.user_data['title']
-    date = dateparser.parse(req.command).date()
+async def del_note_date_input(req: DialogRequest, res: DialogResponse) -> None:
+    title: str = req.user_data['title']
+    date: datetime.date = dateparser.parse(req.command).date()
 
     async with NoteStorage(req.user_id) as db:
-        await db.execute('delete_note', (title, date))
+        await db.delete_notes(title, date)
 
     res.send_message('Запись успешно удалена!')
 
 
 @status_handler(DialogStatus.FIND_NOTE)
-async def find_note(req: DialogRequest, res: DialogResponse):
+async def find_note(req: DialogRequest, res: DialogResponse) -> None:
     if len(req.nlu_tokens) != 1:  # If user input contains any words after 'note', we assume them as a title
-        title = ' '.join(req.nlu_tokens[1:])
+        title: str = ' '.join(req.nlu_tokens[1:])
 
         async with NoteStorage(req.user_id) as db:
-            notes = await db.execute("select_notes_by_title", title)
+            notes: List[Record] = await db.select_notes(title)
 
         if len(notes) == 1:  # If there is only one note, send it back to user
             res.send_message('Выберите форму записи. Краткая или полная?')
             res.send_status(DialogStatus.FIND_NOTE_FORM_INPUT)
             res.send_user_data({'title': title, 'selection_type': 'title_only'}, persistent=True)
         elif len(notes) > 1:  # If there are few notes with the same title, ask user to specify the date
-            date_list = [str(i[2]) for i in notes]
+            date_list: List[str] = [str(i[3]) for i in notes]
             res.send_message(f"Запись с таким названием была сделана в следующие дни: {', '.join(date_list)}. "
                              f"Выберите интересующий Вас день.")
             res.send_status(DialogStatus.FIND_NOTE_DATE_INPUT)
@@ -134,8 +148,8 @@ async def find_note(req: DialogRequest, res: DialogResponse):
 
 
 @status_handler(DialogStatus.FIND_NOTE_DATE_INPUT)
-async def find_note_date_input(req: DialogRequest, res: DialogResponse):
-    date_str = req.command
+async def find_note_date_input(req: DialogRequest, res: DialogResponse) -> None:
+    date_str: str = req.command
 
     res.send_message('Выберите форму записи. Краткая или полная?')
     res.send_status(DialogStatus.FIND_NOTE_FORM_INPUT)
@@ -143,21 +157,21 @@ async def find_note_date_input(req: DialogRequest, res: DialogResponse):
 
 
 @status_handler(DialogStatus.FIND_NOTE_FORM_INPUT)
-async def find_note_form_input(req: DialogRequest, res: DialogResponse):
-    title = req.user_data['title']
-    selection_type = req.user_data['selection_type']
+async def find_note_form_input(req: DialogRequest, res: DialogResponse) -> None:
+    title: str = req.user_data['title']
+    selection_type: str = req.user_data['selection_type']
 
     res.drop_persistent_user_data('title', 'selection_type')
 
     async with NoteStorage(req.user_id) as db:
         if selection_type == 'title_only':
-            note = await db.execute('select_notes_by_title', title)
+            note: List[Record] = await db.select_notes(title)
         elif selection_type == 'title_and_date':
-            date_str = req.user_data['date']
-            date = dateparser.parse(date_str).date()
-            note = await db.execute('select_note', (title, date))
+            date_str: str = req.user_data['date']
+            date: datetime.date = dateparser.parse(date_str).date()
+            note: List[Record] = await db.select_notes(title, date)
 
-    # TODO: rework with intents + [0]
+    # TODO: rework with intents
     if req.command == 'краткая':
         res.send_message(note[0][1])
     elif req.command == 'полная':
@@ -165,18 +179,18 @@ async def find_note_form_input(req: DialogRequest, res: DialogResponse):
 
 
 @status_handler(DialogStatus.LIST_ALL_NOTES)
-async def list_all_notes(req: DialogRequest, res: DialogResponse):
+async def list_all_notes(req: DialogRequest, res: DialogResponse) -> None:
     async with NoteStorage(req.user_id) as db:
-        notes = await db.execute("select_all_notes")
+        notes: List[Record] = await db.select_notes()
 
     res.send_message('У вас сохранены следующие заметки:\n')
     for note in notes:
-        name, date = note
-        res.send_message(f"- '{name}' от {date}")
+        title, date = note[2], note[3]
+        res.send_message(f"- '{title}' от {date}")
 
 
-# Running in HTTPS on remote server only, otherwise secure connection is established through Cloudpub
-app = web.Application()
+# Running in HTTP on dev server only, HTTPS connection is currently established through Cloudpub
+app: web.Application = web.Application()
 app.add_routes([web.post('/', main)])
 app.on_startup.append(start_scheduler)
 app.on_cleanup.append(cleanup_scheduler)

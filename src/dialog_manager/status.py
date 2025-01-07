@@ -1,6 +1,11 @@
+"""A module implementing DialogStatus enum."""
+
 from enum import Enum
 
+
 class DialogStatus(str, Enum):
+    """A specific dialog state which invokes its own status handlers upon reception."""
+
     IDLE = 0
     NEW_NOTE = 1
     NEW_NOTE_TITLE_INPUT = 2
@@ -13,6 +18,8 @@ class DialogStatus(str, Enum):
     FIND_NOTE_FORM_INPUT = 9
     LIST_ALL_NOTES = 10
 
+
+# We assume that all intents are connected to separate dialog statuses in order to simplify status handler logic
 INTENT_STATUS_MAP = {
     'new_note': DialogStatus.NEW_NOTE,
     'del_note': DialogStatus.DEL_NOTE,
