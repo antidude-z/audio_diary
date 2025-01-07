@@ -32,6 +32,17 @@ async def main(request: web.BaseRequest) -> AioResponse:
     return web.json_response(response_data)
 
 
+def send_date_list(res: DialogResponse, notes: List[Record]) -> None:
+    date_list: List[str] = [str(i[3]) for i in notes]
+    res.send_message(f"Запись с таким названием была сделана в следующие дни: {', '.join(date_list)}. "
+                     f"Выберите интересующий Вас день.")
+
+
+def ask_note_form(res: DialogResponse) -> None:
+    res.send_message('Выберите форму записи. Краткая или полная?')
+    res.send_status(DialogStatus.FIND_NOTE_FORM_INPUT)
+
+
 @status_handler(DialogStatus.IDLE)
 async def idle(req: DialogRequest, res: DialogResponse) -> None:
     """Basic handler for every request which has not been classified as anything else."""
@@ -105,9 +116,7 @@ async def del_note_title_input(req: DialogRequest, res: DialogResponse) -> None:
         elif len(notes) > 1:  # If there are few notes with the same title, ask user to specify the date
             res.send_status(DialogStatus.DEL_NOTE_DATE_INPUT)
             res.send_user_data({'title': title})
-            date_list: List[str] = [str(i[3]) for i in notes]
-            res.send_message(f"Запись с таким названием была сделана в следующие дни: {', '.join(date_list)}. "
-                             f"Выберите интересующий Вас день.")
+            send_date_list(res, notes)
         else:
             res.send_message('У вас нет записи с таким названием.')
 
@@ -132,13 +141,10 @@ async def find_note(req: DialogRequest, res: DialogResponse) -> None:
             notes: List[Record] = await db.select_notes(title)
 
         if len(notes) == 1:  # If there is only one note, send it back to user
-            res.send_message('Выберите форму записи. Краткая или полная?')
-            res.send_status(DialogStatus.FIND_NOTE_FORM_INPUT)
+            ask_note_form(res)
             res.send_user_data({'title': title, 'selection_type': 'title_only'}, persistent=True)
         elif len(notes) > 1:  # If there are few notes with the same title, ask user to specify the date
-            date_list: List[str] = [str(i[3]) for i in notes]
-            res.send_message(f"Запись с таким названием была сделана в следующие дни: {', '.join(date_list)}. "
-                             f"Выберите интересующий Вас день.")
+            send_date_list(res, notes)
             res.send_status(DialogStatus.FIND_NOTE_DATE_INPUT)
             res.send_user_data({'title': title, 'selection_type': 'title_and_date'}, persistent=True)
         else:
@@ -151,8 +157,7 @@ async def find_note(req: DialogRequest, res: DialogResponse) -> None:
 async def find_note_date_input(req: DialogRequest, res: DialogResponse) -> None:
     date_str: str = req.command
 
-    res.send_message('Выберите форму записи. Краткая или полная?')
-    res.send_status(DialogStatus.FIND_NOTE_FORM_INPUT)
+    ask_note_form(res)
     res.send_user_data({'date': date_str})
 
 

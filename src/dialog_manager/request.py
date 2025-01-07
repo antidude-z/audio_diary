@@ -1,6 +1,6 @@
 """A module implementing DialogRequest class."""
 
-from typing import Any, Union, Dict, List
+from typing import Any, Dict, List
 
 from .status import DialogStatus, INTENT_STATUS_MAP
 
@@ -12,23 +12,23 @@ class DialogRequest:
         self.version: str = aio_request['version']
 
         # Every session-related attribute is defined here
-        self.session: Dict = aio_request['session']
-        self.user_id: str = self.session['user']['user_id']
-        self.is_new_session: bool = self.session['new']
+        session: Dict = aio_request['session']
+        self.user_id: str = session['user']['user_id']
+        self.is_new_session: bool = session['new']
 
         # Every request-related attribute is defined here
-        self.request: Dict = aio_request['request']
-        self.user_input: str = self.request['original_utterance']  # Unmodified input received 'as is'
+        request: Dict = aio_request['request']
+        self.user_input: str = request['original_utterance']  # Unmodified input received 'as is'
 
         # For short input parsing purposes, has some useful text transformations compared to self.user_input
-        self.command: str = self.request['command'].lower()
+        self.command: str = request['command'].lower()
 
         # Basically self.command, but split into words
-        self.nlu_tokens: List[str] = list(map(lambda x: x.lower(), self.request['nlu']['tokens']))
+        self.nlu_tokens: List[str] = list(map(lambda x: x.lower(), request['nlu']['tokens']))
 
-        self.intents: Dict[str, Any] = self.request['nlu']['intents']  # Used for advanced user speech recognition
+        self.intents: Dict[str, Any] = request['nlu']['intents']  # Used for advanced user speech recognition
 
-        self._request_storage: Dict[str, Any] = aio_request['state']['session']
+        self.__request_storage: Dict[str, Any] = aio_request['state']['session']
 
         # In case of new session, when session storage is initially empty, we begin with IDLE by default
         self.status: DialogStatus = DialogStatus.IDLE
@@ -37,8 +37,8 @@ class DialogRequest:
 
         # If it's not a new session, we get current dialog status and persistence data directly from the storage
         if not self.is_new_session:
-            self.status = self._request_storage['dialog_status']
-            self.persistence = self._request_storage['persistence']
+            self.status = self.__request_storage['dialog_status']
+            self.persistence = self.__request_storage['persistence']
 
         self.exit_current_status: bool = False
 
@@ -59,5 +59,5 @@ class DialogRequest:
     @property
     def user_data(self) -> Dict[str, Any] | None:
         # Making a copy to keep original user data immutable
-        if 'user_data' in self._request_storage:
-            return self._request_storage['user_data'].copy()
+        if 'user_data' in self.__request_storage:
+            return self.__request_storage['user_data'].copy()

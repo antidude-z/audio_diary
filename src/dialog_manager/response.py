@@ -11,10 +11,10 @@ class DialogResponse:
 
     def __init__(self):
         # If user doesn't provide any dialog status himself, we assume IDLE as its default value
-        self._response_storage: Dict[str, Any] = \
+        self.__response_storage: Dict[str, Any] = \
             {'dialog_status': DialogStatus.IDLE, 'persistence': [], 'user_data': {}}
 
-        self._full_response: Dict[str, Any] = {
+        self.__full_response: Dict[str, Any] = {
             'response': {
                 'text': '',
                 'end_session': False
@@ -27,9 +27,9 @@ class DialogResponse:
         """Transfer persistent variables from request in case they are present."""
 
         for key in req.persistence:
-            self._response_storage['user_data'][key] = req.user_data[key]
+            self.__response_storage['user_data'][key] = req.user_data[key]
 
-        self._response_storage['persistence'] = req.persistence.copy()
+        self.__response_storage['persistence'] = req.persistence.copy()
 
     def send_user_data(self, entries: Dict[str, Any], persistent: bool = False) -> None:
         """Store given data inside `user_data` session storage field. The data could be accessed only in the next
@@ -37,20 +37,20 @@ class DialogResponse:
 
         # There's practically no need for entries type checking, as everything's going to be JSON-serialized later
         if persistent:
-            self._response_storage['persistence'].extend(list(entries.keys()))
+            self.__response_storage['persistence'].extend(list(entries.keys()))
 
-        self._response_storage['user_data'].update(entries)
+        self.__response_storage['user_data'].update(entries)
 
     def drop_persistent_user_data(self, *args) -> None:
         """Remove unnecessary fields from `user_data`. Changes will be applied on the following request."""
 
         # Used in cases where data is stored over the course of a few subsequent callbacks, and is removed afterward
         for arg in args:
-            if arg not in self._response_storage['persistence']:
+            if arg not in self.__response_storage['persistence']:
                 raise KeyError('Key not found in persistent storage. Cannot be dropped.')
 
-            self._response_storage['persistence'].remove(arg)
-            del self._response_storage['user_data'][arg]
+            self.__response_storage['persistence'].remove(arg)
+            del self.__response_storage['user_data'][arg]
 
     def send_status(self, value: DialogStatus) -> None:
         """Set the dialog status for the next request."""
@@ -59,7 +59,7 @@ class DialogResponse:
         if not isinstance(value, DialogStatus):
             raise TypeError(f'{value} is not a valid DialogStatus entry.')
 
-        self._response_storage['dialog_status'] = value
+        self.__response_storage['dialog_status'] = value
 
     def send_message(self, text: str) -> None:
         """Send a simple text message to the user.
@@ -73,15 +73,15 @@ class DialogResponse:
             raise ValueError('Cannot send empty string.')
 
         # If there are multiple strings to send, we simply stack them together with '\n'
-        if len(self._full_response['response']['text']) == 0:
-            self._full_response['response']['text'] = text
+        if len(self.__full_response['response']['text']) == 0:
+            self.__full_response['response']['text'] = text
         else:
-            self._full_response['response']['text'] += '\n' + text
+            self.__full_response['response']['text'] += '\n' + text
 
     @property
     def json(self) -> Dict[str, Any]:
         # Copying is necessary to prevent original data from unsafe modification
-        response = self._full_response.copy()
-        response['session_state'] = self._response_storage.copy()
+        response = self.__full_response.copy()
+        response['session_state'] = self.__response_storage.copy()
 
         return response

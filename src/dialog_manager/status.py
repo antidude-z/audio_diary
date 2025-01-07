@@ -1,6 +1,7 @@
 """A module implementing DialogStatus enum."""
 
 from enum import Enum
+from typing import Final, Dict
 
 
 class DialogStatus(str, Enum):
@@ -20,7 +21,7 @@ class DialogStatus(str, Enum):
 
 
 # We assume that all intents are connected to separate dialog statuses in order to simplify status handler logic
-INTENT_STATUS_MAP = {
+INTENT_STATUS_MAP: Final[Dict[str, DialogStatus]] = {
     'new_note': DialogStatus.NEW_NOTE,
     'del_note': DialogStatus.DEL_NOTE,
     'find_note': DialogStatus.FIND_NOTE,
