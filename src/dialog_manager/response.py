@@ -9,7 +9,7 @@ from .request import DialogRequest
 class DialogResponse:
     """A class that provides interface for making correct responses to Alice."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         # If user doesn't provide any dialog status himself, we assume IDLE as its default value
         self.__response_storage: Dict[str, Any] = \
             {'dialog_status': DialogStatus.IDLE, 'persistence': [], 'user_data': {}}
