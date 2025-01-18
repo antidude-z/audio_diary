@@ -3,6 +3,7 @@
 from typing import Any, Dict, List
 
 from .status import DialogStatus, INTENT_STATUS_MAP
+from .nlu import NLUFactory, NLU
 
 
 class DialogRequest:
@@ -17,16 +18,13 @@ class DialogRequest:
         self.is_new_session: bool = session['new']
 
         # Every request-related attribute is defined here
-        request: Dict = aio_request['request']
+        request: Dict[str, Any] = aio_request['request']
         self.user_input: str = request['original_utterance']  # Unmodified input received 'as is'
 
         # For short input parsing purposes, has some useful text transformations compared to self.user_input
         self.command: str = request['command'].lower()
 
-        # Basically self.command, but split into words
-        self.nlu_tokens: List[str] = list(map(lambda x: x.lower(), request['nlu']['tokens']))
-
-        self.intents: Dict[str, Any] = request['nlu']['intents']  # Used for advanced user speech recognition
+        self.nlu: NLU = NLUFactory.construct(request['nlu'])  # Used for advanced user speech recognition
 
         self.__request_storage: Dict[str, Any] = aio_request['state']['session']
 
@@ -43,7 +41,7 @@ class DialogRequest:
         self.exit_current_status: bool = False
 
         # 'exit' is a special intent which interrupts any dialog process and sets the status back to IDLE
-        if 'exit' in self.intents and self.status != DialogStatus.IDLE:
+        if 'exit' in self.nlu.intents and self.status != DialogStatus.IDLE:
             self.status = DialogStatus.IDLE
             self.exit_current_status = True
 
@@ -51,7 +49,7 @@ class DialogRequest:
         # and if so, we replace this status with an intent-related one
         # In other case, it's either new session or the user has submitted an unrecognizable input
         if self.status == DialogStatus.IDLE and not self.exit_current_status:
-            for intent in self.intents:
+            for intent in self.nlu.intents:
                 if intent in INTENT_STATUS_MAP:
                     self.status = INTENT_STATUS_MAP[intent]
                     break

@@ -84,4 +84,26 @@ class DialogResponse:
         response = self.__full_response.copy()
         response['session_state'] = self.__response_storage.copy()
 
+        if self.__response_storage['dialog_status'] == DialogStatus.IDLE:
+            buttons = [
+                {
+                    "title": "Создать запись",
+                    "hide": True
+                },
+                {
+                    "title": "Удалить запись",
+                    "hide": True
+                },
+                {
+                    "title": "Мои записи",
+                    "hide": True
+                },
+                {
+                    "title": "Посмотреть запись",
+                    "hide": True
+                },
+            ]
+
+            response['response']['buttons'] = buttons
+
         return response

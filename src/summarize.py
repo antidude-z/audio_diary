@@ -31,15 +31,14 @@ async def create_short_note(text: str, user_id: str, title: str, date: datetime.
         "modelUri": f"gpt://{os.getenv('CATALOG_ID')}/yandexgpt-lite",
         "completionOptions": {
             "stream": False,
-            "temperature": 0.6,
+            "temperature": 0.9,
             "maxTokens": "2000"
         },
         "messages": [
             {
                 "role": "system",
-                "text": "Сократи текст, сохранив его смысл. Не используй никакое форматирование. "
-                        "Выдай только лаконичный перефразированный текст. "
-                        "Не предлагай сайты с информацией на эту тему"
+                "text": "Сократи и лаконично перефразируй текст. Объём текста должен быть сокращён минимум вдвое. "
+                        "Ты должен передать основную суть, события и, самое главное, эмоции."
             },
             {
                 "role": "user",

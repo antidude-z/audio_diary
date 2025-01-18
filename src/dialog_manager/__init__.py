@@ -6,6 +6,7 @@ from typing import Awaitable, Callable, Dict
 from .request import DialogRequest
 from .response import DialogResponse
 from .status import DialogStatus
+from .nlu import *
 
 StatusHandlerType = Callable[[DialogRequest, DialogResponse], Awaitable[Dict | None]]  # Custom type for annotations
 
