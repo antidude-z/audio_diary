@@ -78,6 +78,20 @@ class DialogResponse:
         else:
             self.__full_response['response']['text'] += '\n' + text
 
+    def send_tts(self, tts: str) -> None:
+        # Explicit type casting is required in order to execute len() and concatenation below
+        if not isinstance(tts, str):
+            tts = str(tts)
+
+        if len(tts) == 0:  # Empty strings seem undesirable in terms of user experience
+            raise ValueError('Cannot send empty string.')
+
+        # If there are multiple strings to send, we simply stack them together with '\n'
+        if 'tts' not in self.__full_response['response']:
+            self.__full_response['response']['tts'] = tts
+        else:
+            self.__full_response['response']['tts'] += '\n' + tts
+
     @property
     def json(self) -> Dict[str, Any]:
         # Copying is necessary to prevent original data from unsafe modification

@@ -4,7 +4,7 @@ from typing import Optional, List
 import dateparser
 from asyncpg import Record
 
-from dialog_manager import DialogResponse, DialogStatus
+from dialog_manager import DialogResponse
 
 
 def transform_date(date: datetime.date | Record) -> str:
@@ -12,7 +12,7 @@ def transform_date(date: datetime.date | Record) -> str:
               'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря']
 
     if date.year != date.today().year:
-        year_str = f'{date.year} года'
+        year_str = f' {date.year} года'
     else:
         year_str = ''
 

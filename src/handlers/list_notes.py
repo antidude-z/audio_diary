@@ -22,6 +22,7 @@ async def list_all_notes(req: DialogRequest, res: DialogResponse) -> None:
 
     async with NoteStorage(req.user_id) as db:
         notes: List[Record] = (await db.select_notes())[::-1]
+        notes.sort(key=lambda x: x[3], reverse=True)
 
     if len(notes) == 0:
         res.send_message('У вас не сохранено ни одной заметки. Добавьте новую по команде "новая запись".')

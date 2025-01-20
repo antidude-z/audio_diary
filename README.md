@@ -16,3 +16,5 @@ docker compose pull
 docker compose up -d
 
 docker compose down
+
+пофиксить длинный запрос + ридми + тире + сортировка дат + промт (?) + tts дНевник + починить даты через токены + фикс цифры + string -> YANDEX.STRING

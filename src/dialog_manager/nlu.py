@@ -1,8 +1,5 @@
 from dataclasses import dataclass
-import datetime
-from typing import Optional, Dict, List, Tuple, Union, Any
-
-import dateparser
+from typing import Optional, Dict, List, Any
 
 
 class NLUEntity:

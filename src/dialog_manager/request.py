@@ -1,6 +1,6 @@
 """A module implementing DialogRequest class."""
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from .status import DialogStatus, INTENT_STATUS_MAP
 from .nlu import NLUFactory, NLU
@@ -14,7 +14,9 @@ class DialogRequest:
 
         # Every session-related attribute is defined here
         session: Dict = aio_request['session']
-        self.user_id: str = session['user']['user_id']
+        self.user_id: Optional[str] = None
+        if 'user' in session:
+            self.user_id = session['user']['user_id']
         self.is_new_session: bool = session['new']
 
         # Every request-related attribute is defined here

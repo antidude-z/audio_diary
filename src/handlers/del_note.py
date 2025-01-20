@@ -30,21 +30,24 @@ async def del_note(req: DialogRequest, res: DialogResponse) -> None:
     title: Optional[EntityString] = intent.slots.get('title')
     date: Optional[EntityString] = intent.slots.get('date')
 
+    title_str = ' '.join(req.nlu.tokens[title.start_token:title.end_token])
+
     if title is not None and date is not None:
-        date_object = parse_date(res, date.value)
+        date_str = ' '.join(req.nlu.tokens[date.start_token:date.end_token])
+        date_object = parse_date(res, date_str)
 
         if date_object is None:
             return
 
         async with NoteStorage(req.user_id) as db:
-            note = await db.select_notes(title.value, date_object)
+            note = await db.select_notes(title_str, date_object)
             if len(note) != 0:
-                await db.delete_notes(title.value, date_object)
+                await db.delete_notes(title_str, date_object)
                 res.send_message('Запись успешно удалена!')
             else:
                 res.send_message('Извините, не нашёл такой заметки. Попробуйте снова.')
     elif title is not None:
-        await deletion_attempt_by_title(req, res, title.value)
+        await deletion_attempt_by_title(req, res, title_str)
     else:
         res.send_message('Запись с каким названием Вы бы хотели удалить?')
         res.send_status(DialogStatus.DEL_NOTE_TITLE_INPUT)
